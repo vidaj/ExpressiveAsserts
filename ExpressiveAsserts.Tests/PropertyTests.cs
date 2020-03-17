@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using ExpressiveAsserts.Extensions;
 using Xunit;
 
 namespace ExpressiveAsserts.Tests
@@ -75,6 +77,38 @@ namespace ExpressiveAsserts.Tests
             }.Run();
 
             Assert.Null(error);
+        }
+
+        [Fact]
+        public void CanVerifyFailViaObject()
+        {
+            var toTest = new Properties
+            {
+                String = "foo"
+            };
+            var error = new PropertyCase(toTest)
+            {
+                () => new Properties
+                {
+                    String = "fooBar"
+                }
+            }.Run();
+
+            Assert.Equal("fooBar", error.ExpectedValue);
+            Assert.Equal("foo", error.ActualValue);
+            Assert.Equal(nameof(Properties.String), error.Target);
+        }
+        
+        [Fact]
+        public void CanVerifyViaObject()
+        {
+            var toTest = new Properties
+            {
+                String = "foo",
+                Long = 42
+            };
+
+            toTest.Verify(() => new Properties { String = "foo" });
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 
 namespace ExpressiveAsserts
 {
@@ -11,7 +12,8 @@ namespace ExpressiveAsserts
         public string NullProperty { get; set; }
         
         public string Target { get; set; }
-        
+        public IEnumerable Enumerable { get; set; }
+
         public VerificationException(string errorMessage) : base(errorMessage)
         {
             

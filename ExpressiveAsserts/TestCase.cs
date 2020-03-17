@@ -12,6 +12,8 @@ namespace ExpressiveAsserts
     {
         private List<Expression<Func<T, bool>>> Assertions { get; } = new List<Expression<Func<T, bool>>>();
         
+        private List<Expression<Func<T>>> ObjectAssertions { get; } = new List<Expression<Func<T>>>();
+        
         public IEnumerator<object> GetEnumerator()
         {
             throw new NotImplementedException();
@@ -25,6 +27,11 @@ namespace ExpressiveAsserts
         public void Add(Expression<Func<T, bool>> assertion)
         {
             Assertions.Add(assertion);
+        }
+
+        public void Add(Expression<Func<T>> objectAssertion)
+        {
+            ObjectAssertions.Add(objectAssertion);
         }
 
         public void Verify(T result)
@@ -43,6 +50,16 @@ namespace ExpressiveAsserts
                     {
                         throw GetErrorMessage(result, assertion);
                     }
+                }
+            }
+
+            var objectEqualityBuilder = new ObjectEqualityBuilder();
+            foreach (var assertion in ObjectAssertions)
+            {
+                var test = objectEqualityBuilder.AreEqual(result, assertion);
+                if (test != null)
+                {
+                    throw test;
                 }
             }
         }
@@ -69,47 +86,56 @@ namespace ExpressiveAsserts
 
         private VerificationException GetErrorMessage(T result, Expression<Func<T, bool>> assertion)
         {
-            if (assertion.Body is BinaryExpression e)
+            try
             {
-                var expectedExpression = GetExpectedExpression(e);
-                var testExpression = GetTestExpression(e);
-                var names = string.Join(".", GetName(testExpression));
-                var actual = GetValue(result, testExpression);
-                var expected = GetValue(result, expectedExpression);
-
-                if (actual.Succeeded)
+                if (assertion.Body is BinaryExpression e)
                 {
-                    return new VerificationException($"Expected {names} to be '{expected}' but was '{actual}'")
+                    var expectedExpression = GetExpectedExpression(e);
+                    var testExpression = GetTestExpression(e);
+                    var names = string.Join(".", GetName(testExpression));
+                    if (string.IsNullOrEmpty(names))
                     {
-                        ExpectedValue = expected.Value,
-                        ActualValue = actual.Value,
-                        Target = names
+                        names = typeof(T).Name;
+                    }
+
+                    var actual = GetValue(result, testExpression);
+                    var expected = GetValue(result, expectedExpression);
+
+                    if (actual.Succeeded)
+                    {
+                        return new VerificationException($"Expected {names} to be '{expected}' but was '{actual}'")
+                        {
+                            ExpectedValue = expected.Value, ActualValue = actual.Value, Target = names
+                        };
+                    }
+
+                    return new VerificationException($"Expected {names} to be '{expected}' but '{actual.NullPropertyName}' was null")
+                    {
+                        NullProperty = actual.NullPropertyName, Target = names
                     };
                 }
-                
-                return new VerificationException($"Expected {names} to be '{expected}' but '{actual.NullPropertyName}' was null")
-                {
-                    NullProperty = actual.NullPropertyName,
-                    Target = names
-                };
-            }
 
-            if (assertion.Body is MethodCallExpression mce)
-            {
-                return GetMethodErrorMessage(result, assertion, mce);
-            }
-
-            if (assertion.Body is UnaryExpression u)
-            {
-                if (u.NodeType != ExpressionType.Not)
+                if (assertion.Body is MethodCallExpression mce)
                 {
-                    throw new NotSupportedException("Expected not expression, got " + u.NodeType);
+                    return GetMethodErrorMessage(result, assertion, mce);
                 }
-                
-                return GetMethodErrorMessageInverted(result, assertion, u.Operand);
-            }
 
-            return new VerificationException(assertion.ToString());;
+                if (assertion.Body is UnaryExpression u)
+                {
+                    if (u.NodeType != ExpressionType.Not)
+                    {
+                        throw new NotSupportedException("Expected not expression, got " + u.NodeType);
+                    }
+
+                    return GetMethodErrorMessageInverted(result, assertion, u.Operand);
+                }
+
+                return new VerificationException(new ExpressionStringBuilder().Build(assertion));
+            }
+            catch (Exception)
+            {
+                return new VerificationException(new ExpressionStringBuilder().Build(assertion));
+            }
         }
 
         private VerificationException GetMethodErrorMessage(T result, Expression<Func<T, bool>> assertion, MethodCallExpression mce)
@@ -137,12 +163,14 @@ namespace ExpressiveAsserts
                 {
                     return new VerificationException(message + $" String is <{enumerableString}>")
                     {
-                        Target = names
+                        Target = names,
+                        Enumerable = actual.Enumerable
                     };
                 }
                 return new VerificationException(message + $" Collection contains: {Environment.NewLine}{enumerableString}")
                 {
-                    Target = names
+                    Target = names,
+                    Enumerable = actual.Enumerable
                 };
             }
 
@@ -239,12 +267,14 @@ namespace ExpressiveAsserts
                 {
                     return new VerificationException(message + $" String is <{enumerableString}>")
                     {
-                        Target = names
+                        Target = names,
+                        Enumerable = actual.Enumerable
                     };
                 }
                 return new VerificationException(message + $" Collection contains: {Environment.NewLine}{enumerableString}")
                 {
-                    Target = names
+                    Target = names,
+                    Enumerable = actual.Enumerable
                 };
             }
 
