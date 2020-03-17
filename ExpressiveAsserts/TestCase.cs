@@ -41,7 +41,7 @@ namespace ExpressiveAsserts
                 {
                     if (!succeeded)
                     {
-                        throw new VerificationException(GetErrorMessage(result, assertion));
+                        throw GetErrorMessage(result, assertion);
                     }
                 }
             }
@@ -67,7 +67,7 @@ namespace ExpressiveAsserts
             return e.Left;
         }
 
-        private string GetErrorMessage(T result, Expression<Func<T, bool>> assertion)
+        private VerificationException GetErrorMessage(T result, Expression<Func<T, bool>> assertion)
         {
             if (assertion.Body is BinaryExpression e)
             {
@@ -79,10 +79,19 @@ namespace ExpressiveAsserts
 
                 if (actual.Succeeded)
                 {
-                    return $"Expected {names} to be '{expected}' but was '{actual}'";
+                    return new VerificationException($"Expected {names} to be '{expected}' but was '{actual}'")
+                    {
+                        ExpectedValue = expected.Value,
+                        ActualValue = actual.Value,
+                        Target = names
+                    };
                 }
                 
-                return $"Expected {names} to be '{expected}' but '{actual.NullPropertyName}' was null";
+                return new VerificationException($"Expected {names} to be '{expected}' but '{actual.NullPropertyName}' was null")
+                {
+                    NullProperty = actual.NullPropertyName,
+                    Target = names
+                };
             }
 
             if (assertion.Body is MethodCallExpression mce)
@@ -100,10 +109,10 @@ namespace ExpressiveAsserts
                 return GetMethodErrorMessageInverted(result, assertion, u.Operand);
             }
 
-            return assertion.ToString();
+            return new VerificationException(assertion.ToString());;
         }
 
-        private string GetMethodErrorMessage(T result, Expression<Func<T, bool>> assertion, MethodCallExpression mce)
+        private VerificationException GetMethodErrorMessage(T result, Expression<Func<T, bool>> assertion, MethodCallExpression mce)
         {
             if (mce.Method.ReturnType != typeof(bool))
             {
@@ -114,7 +123,7 @@ namespace ExpressiveAsserts
             var names = string.Join(".", GetName(mce));
             if (actual.Succeeded)
             {
-                return $"Expected {names} to be true, but was false.";
+                return new VerificationException($"Expected {names} to be true, but was false.") { Target = names };
             }
 
             if (actual.Enumerable != null)
@@ -126,12 +135,21 @@ namespace ExpressiveAsserts
 
                 if (actual.Enumerable is string)
                 {
-                    return message + $" String is <{enumerableString}>";
+                    return new VerificationException(message + $" String is <{enumerableString}>")
+                    {
+                        Target = names
+                    };
                 }
-                return message + $" Collection contains: {Environment.NewLine}{enumerableString}";
+                return new VerificationException(message + $" Collection contains: {Environment.NewLine}{enumerableString}")
+                {
+                    Target = names
+                };
             }
 
-            return $"Tried to verify {names}, but {actual.NullPropertyName} was null";
+            return new VerificationException($"Tried to verify {names}, but {actual.NullPropertyName} was null")
+            {
+                Target = names
+            };
         }
 
         private string GetEnumerableString(IEnumerable enumerable)
@@ -189,7 +207,7 @@ namespace ExpressiveAsserts
             return builder.ToString();
         }
         
-        private string GetMethodErrorMessageInverted(T result, Expression<Func<T, bool>> assertion, Expression expression)
+        private VerificationException GetMethodErrorMessageInverted(T result, Expression<Func<T, bool>> assertion, Expression expression)
         {
             var mce = expression as MethodCallExpression;
             if (mce == null)
@@ -207,7 +225,7 @@ namespace ExpressiveAsserts
             var names = "!" + string.Join(".", GetName(mce));
             if (!actual.Succeeded)
             {
-                return $"Expected {names} to be false, but was true.";
+                return new VerificationException($"Expected {names} to be false, but was true.") { Target = names };
             }
 
             if (actual.Enumerable != null)
@@ -219,12 +237,21 @@ namespace ExpressiveAsserts
 
                 if (actual.Enumerable is string)
                 {
-                    return message + $" String is <{enumerableString}>";
+                    return new VerificationException(message + $" String is <{enumerableString}>")
+                    {
+                        Target = names
+                    };
                 }
-                return message + $" Collection contains: {Environment.NewLine}{enumerableString}";
+                return new VerificationException(message + $" Collection contains: {Environment.NewLine}{enumerableString}")
+                {
+                    Target = names
+                };
             }
 
-            return $"Tried to verify {names}, but {actual.NullPropertyName} was null";
+            return new VerificationException($"Tried to verify {names}, but {actual.NullPropertyName} was null")
+            {
+                Target = names
+            };
         }
 
         private List<string> GetName(Expression expression)
